@@ -4,6 +4,8 @@ from __future__ import print_function
 
 import sys
 import unittest
+from unittest.mock import patch
+
 import nacos
 from nacos import files
 from nacos.listener import SubscribeListener, SimpleListenerManager
@@ -22,6 +24,8 @@ USERNAME = None
 PASSWORD = None
 
 client = nacos.NacosClient(SERVER_ADDRESSES, namespace=NAMESPACE, username=USERNAME, password=PASSWORD)
+
+
 # Set the following option if http requests need through by proxy
 # client.set_options(proxies={"http":"192.168.56.1:809"})
 
@@ -29,6 +33,21 @@ class TestClient(unittest.TestCase):
     def test_get_server(self):
         self.assertEqual(client.get_server(), (SERVER_1, 8848))
 
+    @patch('nacos.client.urlopen')
+    def test_server_from_url(self, mock_urlopen):
+        mock_response = b'11.11.11.11:8848\n'
+        mock_urlopen.return_value.read.return_value = mock_response
+        server_list = client.get_server_from_url('http://mock-endpoint')
+        print(server_list)
+        self.assertEqual(server_list, [('11.11.11.11', '8848')])
+        mock_urlopen.assert_called_once_with('http://mock-endpoint', timeout=3)
+
+    @patch('nacos.client.urlopen')
+    def test_client_with_endpoint(self,mock_urlopen):
+        mock_response = b'11.11.11.11:8848\n'
+        mock_urlopen.return_value.read.return_value = mock_response
+        client2 = nacos.NacosClient(endpoint='http://mock-endpoint', namespace=NAMESPACE, username=USERNAME,
+                                    password=PASSWORD)
     def test_set_get_remove_config(self):
         d = "test"
         g = "DEFAULT_GROUP"

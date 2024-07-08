@@ -21,8 +21,8 @@ try:
 except ImportError:
     ssl = None
 
-from multiprocessing import Process, Manager, Queue, pool
-from threading import RLock, Thread
+from multiprocessing import Process, Manager
+from threading import RLock
 
 try:
     # python3.6
@@ -236,12 +236,7 @@ class NacosClient:
                     # endpoint中没有指定port
                     server_list_temp.append((sp[0], default_port))
                 else:
-                    try:
-                        port = sp.strip().split("/")[0]
-                        server_list_temp.append((sp[0], int(port)))
-                    except ValueError:
-                        logger.warning(
-                            "[get-server-list] bad server address:%s ignored" % server_info)
+                    server_list_temp.append((sp[0], sp[1]))
             if (self.server_list != server_list_temp):
                 self.server_list = server_list_temp
         return server_list_temp
@@ -296,8 +291,7 @@ class NacosClient:
                 self.get_server_from_url(url)
                 partial_task_function = functools.partial(self.get_server_from_url_task,
                                                           url)
-                thread = self.concurrency.create_thread(target=partial_task_function)
-                thread.daemon = True
+                thread = self.concurrency.create_thread(partial_task_function)
                 thread.start()
             else:
                 logger.exception("[init] server address & endpoint must not both none")
@@ -642,7 +636,7 @@ class NacosClient:
             key_list.append(cache_key)
             sys_os = platform.system()
 
-            puller = self.concurrency.create_thread(self._do_pulling, True, key_list, self.notify_queue)
+            puller = self.concurrency.create_thread(self._do_pulling, key_list, self.notify_queue)
 
             puller.start()
             self.puller_mapping[cache_key] = (puller, key_list)
@@ -817,8 +811,7 @@ class NacosClient:
         self.callback_thread_pool = self.concurrency.create_thread_pool(self.callback_thread_num)
         self.process_mgr = Manager()
 
-        t = Thread(target=self._process_polling_result)
-        t.setDaemon(True)
+        t = self.concurrency.create_thread(self._process_polling_result)
         t.start()
         logger.info("[init-pulling] init completed")
 

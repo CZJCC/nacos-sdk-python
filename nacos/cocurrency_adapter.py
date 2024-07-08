@@ -6,7 +6,7 @@ from multiprocessing import pool
 
 class ConcurrencyAdapter:
 
-    def create_thread(self, target, is_daemon=False, *args, **kwargs):
+    def create_thread(self, target, *args, **kwargs):
         raise NotImplementedError()
 
     def create_thread_pool(self, size):
@@ -17,9 +17,9 @@ class ConcurrencyAdapter:
 
 
 class NativeThreadAdapter(ConcurrencyAdapter):
-    def create_thread(self, target, is_daemon=False, *args, **kwargs):
+    def create_thread(self, target, *args, **kwargs):
         thread = threading.Thread(target=target, args=args, kwargs=kwargs)
-        thread.daemon = is_daemon
+        thread.daemon = True
         return thread
 
     def create_queue(self):
@@ -31,7 +31,7 @@ class NativeThreadAdapter(ConcurrencyAdapter):
 
 class GeventAdapter(ConcurrencyAdapter):
 
-    def create_thread(self, target, is_daemon=False, *args, **kwargs):
+    def create_thread(self, target, *args, **kwargs):
         from gevent import spawn
         return spawn(target, *args, **kwargs)
 
