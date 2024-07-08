@@ -8,11 +8,12 @@ import logging
 import os
 import platform
 import socket
-import threading
+import sys
 import time
 from logging.handlers import TimedRotatingFileHandler
 from typing import Dict
 
+from .cocurrency_adapter import NativeThreadAdapter, GeventAdapter
 from .task import HeartbeatInfo, HeartbeatTask
 
 try:
@@ -279,6 +280,7 @@ class NacosClient:
                  sk=None, username=None, password=None, logDir=None, log_level=None, log_rotation_backup_count=None):
         self.server_list = list()
         self.initLog(logDir, log_level, log_rotation_backup_count)
+        self.concurrency = NacosClient._auto_dectect_concurrency_adapter()
         try:
             if server_addresses is not None and server_addresses.strip() != "":
                 for server_addr in server_addresses.strip().split(","):
@@ -294,7 +296,7 @@ class NacosClient:
                 self.get_server_from_url(url)
                 partial_task_function = functools.partial(self.get_server_from_url_task,
                                                           url)
-                thread = threading.Thread(target=partial_task_function)
+                thread = self.concurrency.create_thread(target=partial_task_function)
                 thread.daemon = True
                 thread.start()
             else:
@@ -326,7 +328,7 @@ class NacosClient:
         self.pulling_lock = RLock()
         self.puller_mapping = None
         self.notify_queue = None
-        self.callback_tread_pool = None
+        self.callback_thread_pool = None
         self.process_mgr = None
 
         self.default_timeout = DEFAULTS["TIMEOUT"]
@@ -345,6 +347,15 @@ class NacosClient:
         if self.username and self.password:
             self.get_access_token()
         logger.info("[client-init] endpoint:%s, tenant:%s" % (endpoint, namespace))
+
+    @staticmethod
+    def _auto_dectect_concurrency_adapter():
+        if 'gevent' in sys.modules:
+            logger.info("[auto-detect-concurrency] use gevent")
+            return GeventAdapter()
+        else:
+            logger.info("[auto-detect-concurrency] use native")
+            return NativeThreadAdapter()
 
     def set_options(self, **kwargs):
         for k, v in kwargs.items():
@@ -627,12 +638,11 @@ class NacosClient:
                 break
         else:
             logger.debug("[add-watcher] no puller available, new one and add key:%s" % cache_key)
-            key_list = self.process_mgr.list()
+            key_list = list()
             key_list.append(cache_key)
             sys_os = platform.system()
 
-            puller = Thread(target=self._do_pulling, args=(key_list, self.notify_queue))
-            puller.setDaemon(True)
+            puller = self.concurrency.create_thread(self._do_pulling, True, key_list, self.notify_queue)
 
             puller.start()
             self.puller_mapping[cache_key] = (puller, key_list)
@@ -745,7 +755,6 @@ class NacosClient:
         cache_pool = dict()
         for cache_key in cache_list:
             cache_pool[cache_key] = CacheData(cache_key, self)
-
         while cache_list:
             unused_keys = set(cache_pool.keys())
             contains_init_key = False
@@ -804,9 +813,10 @@ class NacosClient:
             logger.info("[init-pulling] puller is already initialized")
             return
         self.puller_mapping = dict()
-        self.notify_queue = Queue()
-        self.callback_tread_pool = pool.ThreadPool(self.callback_thread_num)
+        self.notify_queue = self.concurrency.create_queue()
+        self.callback_thread_pool = self.concurrency.create_thread_pool(self.callback_thread_num)
         self.process_mgr = Manager()
+
         t = Thread(target=self._process_polling_result)
         t.setDaemon(True)
         t.start()
@@ -837,7 +847,7 @@ class NacosClient:
                         "[process-polling-result] md5 changed since last call, calling %s with changed md5: %s ,params: %s"
                         % (watcher.callback.__name__, md5, params))
                     try:
-                        self.callback_tread_pool.apply(watcher.callback, (params,))
+                        self.callback_thread_pool.apply_async(watcher.callback, (params,))
                     except Exception as e:
                         logger.exception("[process-polling-result] exception %s occur while calling %s " % (
                             str(e), watcher.callback.__name__))

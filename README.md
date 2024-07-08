@@ -9,14 +9,14 @@ see: https://nacos.io/docs/latest/guide/user/open-api/
 
 ### Supported Python version：
 
-Python 2.7
-Python 3.6
-Python 3.7
+- Python 2.7
+- Python 3.6
+- Python 3.7
 
 ### Supported Nacos version
-Nacos 0.8.0+
-Nacos 1.x
-Nacos 2.x with http protocol
+- Nacos 0.8.0+
+- Nacos 1.x
+- Nacos 2.x with http protocol
 
 
 ## Installation
