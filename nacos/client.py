@@ -47,7 +47,7 @@ from .timer import NacosTimer, NacosTimerManager
 
 logger = logging.getLogger(__name__)
 
-VERSION = "0.1.16"
+VERSION = "0.1.17-beta"
 
 DEFAULT_GROUP_NAME = "DEFAULT_GROUP"
 DEFAULT_NAMESPACE = ""
