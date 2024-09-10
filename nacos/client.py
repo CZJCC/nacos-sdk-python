@@ -323,7 +323,6 @@ class NacosClient:
         self.puller_mapping = None
         self.notify_queue = None
         self.callback_thread_pool = None
-        self.process_mgr = None
 
         self.default_timeout = DEFAULTS["TIMEOUT"]
         self.auth_enabled = self.ak and self.sk
@@ -809,7 +808,6 @@ class NacosClient:
         self.puller_mapping = dict()
         self.notify_queue = self.concurrency.create_queue()
         self.callback_thread_pool = self.concurrency.create_thread_pool(self.callback_thread_num)
-        self.process_mgr = Manager()
 
         t = self.concurrency.create_thread(self._process_polling_result)
         t.start()
